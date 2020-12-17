@@ -562,6 +562,9 @@ public class WorkflowExecutor {
                         retriableMap.put(task.getReferenceTaskName(), task);
                     }
                     break;
+                case TIMED_OUT:
+                    retriableMap.put(task.getReferenceTaskName(), task);
+                    break;                    
                 default:
                     retriableMap.remove(task.getReferenceTaskName());
                     break;

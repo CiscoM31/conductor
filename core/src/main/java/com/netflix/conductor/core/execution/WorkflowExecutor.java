@@ -1069,11 +1069,11 @@ public class WorkflowExecutor {
             }
 
         } catch (TerminateWorkflowException twe) {
-            LOGGER.info("Execution terminated of workflow: {}", workflowId, twe);
+            LOGGER.info("Execution terminated of workflow: {} error {}", workflowId, twe.getMessage(), twe);
             terminate(workflow, twe);
             return true;
-        } catch (RuntimeException e) {
-            LOGGER.error("Error deciding workflow: {}", workflowId, e);
+        } catch (RuntimeException e) { 
+            LOGGER.error("Error deciding workflow: {} msg {} ", workflowId, e.getMessage(), e);
             throw e;
         } finally {
             executionLockService.releaseLock(workflowId);
@@ -1449,7 +1449,7 @@ public class WorkflowExecutor {
             List<String> taskIds = tasks.stream()
                     .map(Task::getTaskId)
                     .collect(Collectors.toList());
-            String errorMsg = String.format("Error scheduling tasks: %s, for workflow: %s", taskIds, workflow.getWorkflowId());
+            String errorMsg = String.format("Error scheduling tasks: %s, for workflow: %s error: %s", taskIds, workflow.getWorkflowId(), e.getMessage());
             LOGGER.error(errorMsg, e);
             Monitors.error(className, "scheduleTask");
             // TODO Provide a better implementation of rollbackTasks considering all the edge cases.

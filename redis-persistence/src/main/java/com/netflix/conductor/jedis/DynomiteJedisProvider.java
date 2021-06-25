@@ -69,10 +69,11 @@ public class DynomiteJedisProvider implements Provider<JedisCommands> {
                 .setLocalDataCenter(configuration.getRegion())
                 .setSocketTimeout(0)
                 .setConnectTimeout(0)
-                .setMaxConnsPerHost(
-                        configuration.getMaxConnectionsPerHost()
-                );
-
+                .setMaxConnsPerHost(configuration.getMaxConnectionsPerHost())
+		.setMaxTimeoutWhenExhausted(configuration.getMaxTimeoutWhenExhausted())
+                .setRetryPolicyFactory(configuration.getConnectionRetryPolicy());
+	logger.info("Starting conductor server using dynomite/redis cluster " + configuration.getClusterName());
+	logger.info("Setting max connection {} max timeout {} ", configuration.getMaxConnectionsPerHost(), configuration.getMaxTimeoutWhenExhausted());
 
         return new DynoJedisClient.Builder()
                 .withHostSupplier(hostSupplier)

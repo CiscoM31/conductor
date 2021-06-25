@@ -5,7 +5,9 @@ import com.netflix.conductor.core.execution.TaskStatusListener;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import javax.inject.Inject;
 import javax.inject.Singleton;
+import java.io.IOException;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.LinkedBlockingDeque;
 
@@ -13,9 +15,10 @@ import java.util.concurrent.LinkedBlockingDeque;
 public class TaskStatusPublisher implements TaskStatusListener {
 
     private static final Logger LOGGER = LoggerFactory.getLogger(TaskStatusPublisher.class);
-    private static final String NOTIFICATION_TYPE = "workflow/TaskNotifications";
     private static final Integer QDEPTH = Integer.parseInt(System.getenv().getOrDefault("ENV_TASK_NOTIFICATION_QUEUE_SIZE", "50"));
     private BlockingQueue<Task> blockingQueue = new LinkedBlockingDeque<>(QDEPTH);
+
+    private RestClientManager rcm;
 
     class ExceptionHandler implements Thread.UncaughtExceptionHandler
     {
@@ -24,9 +27,9 @@ public class TaskStatusPublisher implements TaskStatusListener {
             LOGGER.info("An exception has been captured\n");
             LOGGER.info("Thread: {}\n", t.getName());
             LOGGER.info("Exception: {}: {}\n", e.getClass().getName(), e.getMessage());
-//            LOGGER.info("Stack Trace: \n");
-//            e.printStackTrace(System.out);
-//            LOGGER.info("Thread status: {}\n", t.getState());
+            //LOGGER.info("Stack Trace: \n");
+            //e.printStackTrace(System.out);
+            LOGGER.info("Thread status: {}\n", t.getState());
             new ConsumerThread().start();
         }
     }
@@ -37,10 +40,12 @@ public class TaskStatusPublisher implements TaskStatusListener {
             this.setUncaughtExceptionHandler(new ExceptionHandler());
             String tName = Thread.currentThread().getName();
             LOGGER.info("{}: Starting consumer thread", tName);
+            Task task;
+            TaskNotification taskNotification = null;
             while (true) {
                 try {
-                    Task task = blockingQueue.take();
-                    TaskNotification taskNotification = new TaskNotification(task);
+                    task = blockingQueue.take();
+                    taskNotification = new TaskNotification(task);
                     String jsonTask = taskNotification.toJsonString();
                     LOGGER.info("Start Publishing TaskNotification: {}", jsonTask);
                     if (taskNotification.getTaskType().equals("SUB_WORKFLOW")) {
@@ -60,14 +65,20 @@ public class TaskStatusPublisher implements TaskStatusListener {
                     Thread.sleep(5);
                 }
                 catch (Exception e) {
-                    LOGGER.error("Failed to publish task: {} to String. Exception: {}", this, e);
-                    LOGGER.error(e.getMessage());
+                    if (taskNotification != null) {
+                        LOGGER.error("Failed to publish task: {}", taskNotification.getWorkflowId());
+                    } else {
+                        LOGGER.error("Failed to publish task: Task is NULL");
+                    }
+                    LOGGER.error(e.toString());
                 }
             }
         }
     }
 
-    public TaskStatusPublisher() {
+    @Inject
+    public TaskStatusPublisher(RestClientManager rcm) {
+        this.rcm = rcm;
         ConsumerThread consumerThread = new ConsumerThread();
         consumerThread.start();
     }
@@ -77,16 +88,19 @@ public class TaskStatusPublisher implements TaskStatusListener {
         try {
             blockingQueue.put(task);
         } catch (Exception e){
-            LOGGER.error("Failed to enqueue task: {} to String. Exception: {}", this, e);
-            LOGGER.error(e.getMessage());
+            LOGGER.error("Failed to enqueue task: Id {} Type {} of workflow {} ", task.getTaskId(), task.getTaskType(), task.getWorkflowInstanceId());
+            LOGGER.error(e.toString());
         }
     }
 
-    private void publishTaskNotification(TaskNotification taskNotification) {
+    private void publishTaskNotification(TaskNotification taskNotification) throws IOException {
         String jsonTask = taskNotification.toJsonString();
-        RestClient rc = new RestClient();
-        String url = rc.createUrl(NOTIFICATION_TYPE);
-        rc.post(url, jsonTask, taskNotification.getDomainGroupMoId(), taskNotification.getAccountMoId());
+        rcm.postNotification(
+                RestClientManager.NotificationType.TASK,
+                jsonTask,
+                taskNotification.getDomainGroupMoId(),
+                taskNotification.getAccountMoId(),
+                taskNotification.getTaskId());
     }
 
 }

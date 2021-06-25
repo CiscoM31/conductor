@@ -161,7 +161,7 @@ public class MetadataServiceImpl implements MetadataService {
                     Object returnValue = ScriptEvaluator.eval(task.getCaseExpression(), map);
                 } catch(ScriptException e) {
                     throw new ApplicationException(Code.INVALID_INPUT,
-                        String.format("Decision task condition is not well formated: %s", e.getMessage()));
+                        String.format("Decision task condition is not well formated for '%s': %s", task.getName(), e.getMessage()));
                 }
             }
         }

@@ -20,6 +20,8 @@ package com.netflix.conductor.core.execution.tasks;
 
 import com.netflix.conductor.common.metadata.tasks.Task;
 import com.netflix.conductor.common.metadata.tasks.Task.Status;
+import com.netflix.conductor.common.metadata.tasks.TaskDef;
+import com.netflix.conductor.common.metadata.workflow.WorkflowTask;
 import com.netflix.conductor.common.run.Workflow;
 import com.netflix.conductor.common.utils.TaskUtils;
 import com.netflix.conductor.core.execution.WorkflowExecutor;
@@ -27,11 +29,16 @@ import com.netflix.conductor.core.execution.WorkflowExecutor;
 import java.util.List;
 import java.util.stream.Collectors;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 /**
  * @author Viren
  *
  */
 public class Join extends WorkflowSystemTask {
+
+    private static final Logger LOGGER = LoggerFactory.getLogger(Join.class);
 
     public Join() {
         super("JOIN");
@@ -57,6 +64,19 @@ public class Join extends WorkflowSystemTask {
                 break;
             }
             Status taskStatus = forkedTask.getStatus();
+
+	    // Check if task has more retries before evaluating if JOIN can be processed
+	    WorkflowTask workflowTask = forkedTask.getWorkflowTask();
+	    if (workflowTask != null) {
+	    	TaskDef taskDefinition = workflowTask.getTaskDefinition();
+	    	if (taskDefinition != null) {
+		    if (!taskStatus.isSuccessful() && taskStatus.isRetriable() && forkedTask.getRetryCount() < taskDefinition.getRetryCount()) {
+			LOGGER.info("Join task evaluation for workflow {} is skipped since forked task {} has retries", workflow.getWorkflowId(), forkedTask.getTaskId()); 
+		    	allDone = false;
+                    	break;
+		    }
+		} 
+	    }
             hasFailures = !taskStatus.isSuccessful() && !forkedTask.getWorkflowTask().isOptional();
             if (hasFailures) {
                 failureReason.append(forkedTask.getReasonForIncompletion()).append(" ");

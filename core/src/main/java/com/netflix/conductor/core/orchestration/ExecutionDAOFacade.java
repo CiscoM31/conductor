@@ -484,7 +484,7 @@ public class ExecutionDAOFacade {
             	indexDAO.indexTask(task);
             }
         } catch (Exception e) {
-            String errorMsg = String.format("Error updating task: %s in workflow: %s", task.getTaskId(), task.getWorkflowInstanceId());
+            String errorMsg = String.format("Error updating task: %s in workflow: %s error: %s", task.getTaskId(), task.getWorkflowInstanceId(), e.getMessage());
             LOGGER.error(errorMsg, e);
             throw new ApplicationException(ApplicationException.Code.BACKEND_ERROR, errorMsg, e);
         }
